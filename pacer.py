@@ -69,7 +69,7 @@ def clean_history(path):
 #Input: Array with searched cases and history -> Returns a dict of new cases and # of new cases
 def find_new_cases(cases, history):
     total = 0
-    new_cases = {"Key Cases":[], "Other Cases": []}
+    new_cases = {"U.S. Criminal and Civil Cases":[], "Other Cases": []}
 
     pattern = re.compile(
         r'\b(?:USA|U\.?S\.?A\.?|United\s+States(?:\s+of\s+America)?)\b\s*v\.?\s*\b', 
@@ -79,7 +79,7 @@ def find_new_cases(cases, history):
     for case in cases:
         if case not in history:
             if pattern.search(case[1]):
-                new_cases["Key Cases"].append(case)
+                new_cases["U.S. Criminal and Civil Cases"].append(case)
             else:
                 new_cases["Other Cases"].append(case)
             total += 1
