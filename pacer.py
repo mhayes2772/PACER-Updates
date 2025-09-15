@@ -2,17 +2,17 @@ import requests, datetime, csv, smtplib, sys, re, os, configparser
 from email.message import EmailMessage
 
 #Input: Command line args -> 0 for Daily, 1 for Weekly
-# def parse_args(args):
-#     if len(args) == 1:
-#         print("Usage: py pacer.py [daily, weekly]")
-#         sys.exit()
-#     elif sys.argv[1] == "daily":
-#         return 0
-#     elif sys.argv[1] == "weekly":
-#         return 1
-#     else:
-#         print("Usage: py pacer.py [daily, weekly]")
-#         sys.exit()
+def parse_args(args):
+    if len(args) == 1:
+        print("Usage: py pacer.py [daily, weekly]")
+        sys.exit()
+    elif sys.argv[1] == "daily":
+        return 0
+    elif sys.argv[1] == "weekly":
+        return 1
+    else:
+        print("Usage: py pacer.py [daily, weekly]")
+        sys.exit()
 
 #Input: Reads config file values into dictionary
 def read_config():
@@ -202,7 +202,7 @@ def search(fromDate, toDate, token, url, court_id):
     return cases, cost
 
 if __name__=="__main__":
-    mode = 1 if sys.argv[1] == "weekly" else 0
+    mode = parse_args(sys.argv)
     
     #LAMBDA - Change to read from environment variables
     config = read_config()

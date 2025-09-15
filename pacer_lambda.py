@@ -1,5 +1,5 @@
 import boto3
-import requests, datetime, csv, smtplib, sys, re, os, configparser
+import requests, datetime, csv, smtplib, sys, re, os, configparser, pytz
 from email.message import EmailMessage
 
 #Input: Command line args -> 0 for Daily, 1 for Weekly
@@ -90,41 +90,44 @@ def find_new_cases(cases, history):
 def authenticate(username, password, url):
     my_headers = {"Content-Type":"application/json", "Accept":"application/json"}
     my_body = {"loginId":username, "password":password}
-    
-    x = requests.post(f"https://{url}/services/cso-auth", 
-        json = my_body, headers = my_headers)
-
-    if int(x.json()['loginResult']):
-        print("Login failed")
-        print(x.json()['errorDescription'])
-        sys.exit()
-
+    try:
+        x = requests.post(f"https://{url}/services/cso-auth", 
+            json = my_body, headers = my_headers)
+        if int(x.json()['loginResult']):
+            print("Login failed")
+            print(x.json()['errorDescription'])
+            raise SystemExit()
+    except requests.exceptions.RequestException as e:
+        raise SystemExit(e)
     return x.json()['nextGenCSO']
 
 #Input: PACER API authentication token -> Invalidates the token 
 def logout(token, url):
     my_headers = {"Content-Type":"application/json", "Accept":"application/json"}
     my_body = {"nextGenCSO":token}
-    x = requests.post(f"https://{url}/services/cso-logout", json = my_body, headers = my_headers)
+    try:
+        x = requests.post(f"https://{url}/services/cso-logout", json = my_body, headers = my_headers)
 
-    if int(x.json()['loginResult']):
-        print("An error occured on logout")
-        print(x.json()['errorDescription'])
-        sys.exit()
+        if int(x.json()['loginResult']):
+            print("An error occured on logout")
+            print(x.json()['errorDescription'])
+            sys.exit()
+    except requests.exceptions.RequestException as e:
+        raise SystemExit(e)
 
 #Input: Mode (Daily or Weekly) -> dates to be used for the search
-def get_dates(mode):
-    toDate = datetime.datetime.now()
+def get_dates(mode, timezone):
+    toDate = datetime.datetime.now(tz=timezone)
     #Special Search (Testing)
     if not mode:
         #Daily Search
         if toDate.strftime("%a") == "Mon":
-            fromDate = (datetime.datetime.now() - datetime.timedelta(days = 4))
+            fromDate = (toDate - datetime.timedelta(days = 4))
         else:
-            fromDate = (datetime.datetime.now() - datetime.timedelta(days = 2))
+            fromDate = (toDate - datetime.timedelta(days = 2))
     else:
         #Weekly search
-        fromDate = (datetime.datetime.now() - datetime.timedelta(days = 7))
+        fromDate = (toDate - datetime.timedelta(days = 7))
 
     return fromDate.strftime("%Y-%m-%d"), toDate.strftime("%Y-%m-%d")
 
@@ -231,6 +234,7 @@ def lambda_handler(event, context):
         'auth_url': os.environ['auth_url'],
         'pclapiurl': os.environ['pclapiurl'],
         'court_id': os.environ['court_id'],
+        'court_tz': pytz.timezone(os.environ['court_tz']),
         'email_recipient': os.environ['email_recipient'],
         'pclusr': os.environ['pclusr'],
         'pclpswd': os.environ['pclpswd'],
@@ -245,7 +249,7 @@ def lambda_handler(event, context):
     token = authenticate(config['pclusr'], config['pclpswd'], config['auth_url'])
 
     #PACER immediate search
-    fromDate, toDate = get_dates(mode)
+    fromDate, toDate = get_dates(mode, config['court_tz'])
     cases, cost = search(fromDate, toDate, token, config['pclapiurl'], config['court_id'])
 
     #Read history file into array for use
