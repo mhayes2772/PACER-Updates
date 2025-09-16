@@ -1,4 +1,4 @@
-#import boto3
+import boto3
 import requests, datetime, csv, smtplib, sys, re, os, configparser, pytz
 from email.message import EmailMessage
 
@@ -226,73 +226,74 @@ def search(fromDate, toDate, token, url, court_id):
 
     return cases, cost
 
-# def read_history_s3(bucket, key):
-#     s3 = boto3.client('s3')
-#     obj = s3.get_object(Bucket=bucket, Key=key)
-#     content = obj['Body'].read().decode('utf-8').splitlines()
-#     reader = csv.reader(content)
-#     return [row for row in reader]
+#Input: S3 bucket name and key -> Reads history csv from S3 into an array
+def read_history_s3(bucket, key):
+    s3 = boto3.client('s3')
+    try:
+        obj = s3.get_object(Bucket=bucket, Key=key)
+        content = obj['Body'].read().decode('utf-8').splitlines()
+        reader = csv.reader(content)
+        return [row for row in reader]
+    except Exception as e:
+        raise SystemExit(e)    
 
-# def write_history_s3(bucket, key, cases, history):
-#     s3 = boto3.client('s3')
-#     output = []
-#     for case in cases:
-#         if case not in history:
-#             output.append(case)
-#     # Combine with existing history
-#     all_cases = history + output
-#     # Write back to S3
-#     csv_content = "\n".join([",".join(row) for row in all_cases])
-#     s3.put_object(Bucket=bucket, Key=key, Body=csv_content.encode('utf-8'))
+def write_history_s3(bucket, key, cases, history):
+    s3 = boto3.client('s3')
+    output = []
+    for case in cases:
+        if case not in history:
+            output.append(case)
+    # Combine with existing history
+    all_cases = history + output
+    # Write back to S3
+    csv_content = "\n".join([",".join(row) for row in all_cases])
+    s3.put_object(Bucket=bucket, Key=key, Body=csv_content.encode('utf-8'))
 
-# def lambda_handler(event, context):
-#     # Read mode from event (e.g., {"mode": "daily"} or {"mode": "weekly"})
-#     mode = 0 if event.get('mode', 'daily') == 'daily' else 1
+#AWS Lambda handler
+def lambda_handler(event, context):
+    # Read mode from event (e.g., {"mode": "daily"} or {"mode": "weekly"})
+    mode = 0 if event.get('mode', 'daily') == 'daily' else 1
 
-#     config = {
-#         'script_email': os.environ['script_email'],
-#         'email_pswd': os.environ['email_pswd'],
-#         'auth_url': os.environ['auth_url'],
-#         'pclapiurl': os.environ['pclapiurl'],
-#         'court_id': os.environ['court_id'],
-#         'court_tz': pytz.timezone(os.environ['court_tz']),
-#         'email_recipient': os.environ['email_recipient'],
-#         'pclusr': os.environ['pclusr'],
-#         'pclpswd': os.environ['pclpswd'],
-#     }
-#     #config = read_config()
-#     #history_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history.csv")
+    config = {
+        'script_email': os.environ['script_email'],
+        'email_pswd': os.environ['email_pswd'],
+        'auth_url': os.environ['auth_url'],
+        'pclapiurl': os.environ['pclapiurl'],
+        'court_id': os.environ['court_id'],
+        'court_tz': pytz.timezone(os.environ['court_tz']),
+        'email_recipient': os.environ['email_recipient'],
+        'pclusr': os.environ['pclusr'],
+        'pclpswd': os.environ['pclpswd'],
+    }
+    bucket = os.environ['history_bucket']
+    key = os.environ['history_key']
 
-#     bucket = os.environ['history_bucket']
-#     key = os.environ['history_key']
+    #Get authentication token from PACER
+    token = authenticate(config['pclusr'], config['pclpswd'], config['auth_url'])
 
-#     #Get authentication token from PACER
-#     token = authenticate(config['pclusr'], config['pclpswd'], config['auth_url'])
+    #PACER immediate search
+    fromDate, toDate = get_dates(mode, config['court_tz'])
+    cases, cost = search(fromDate, toDate, token, config['pclapiurl'], config['court_id'])
 
-#     #PACER immediate search
-#     fromDate, toDate = get_dates(mode, config['court_tz'])
-#     cases, cost = search(fromDate, toDate, token, config['pclapiurl'], config['court_id'])
+    #Read history file into array for use
+    history = read_history_s3(bucket, key)
 
-#     #Read history file into array for use
-#     #history = read_history(history_path)
-#     history = read_history_s3(bucket, key)
+    #Find new cases by comparing current search and history
+    new_cases, total = find_new_cases(cases, history)
 
-#     #Find new cases by comparing current search and history
-#     new_cases, total = find_new_cases(cases, history)
+    #Create and send the email
+    email = create_email(new_cases, total, cost, config['script_email'], config['email_recipient'], mode, config['court_tz'])
+    send_email(email, config['script_email'], config['email_pswd'])
 
-#     #Create and send the email
-#     email = create_email(new_cases, total, cost, config['script_email'], config['email_recipient'], mode)
-#     send_email(email, config['script_email'], config['email_pswd'])
-
-#     #Write any new cases into the history file and clean file
-#     #add_to_history(history_path, cases, history)
-#     #clean_history(history_path)
-#     write_history_s3(bucket, key, cases, history)
-#     #TODO -> Lambda clean history
+    #Write any new cases into the history file and clean file
+    #clean_history(history_path)
+    write_history_s3(bucket, key, cases, history)
+    #TODO -> Lambda clean history
     
-#     #Invalidate the authentication token
-#     logout(token, config['auth_url'])
+    #Invalidate the authentication token
+    logout(token, config['auth_url'])
 
+#Main function for local use
 def main():
     mode = parse_args(sys.argv)
     
