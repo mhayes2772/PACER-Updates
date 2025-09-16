@@ -47,30 +47,23 @@ def read_history(path):
             content.append(row)
     return content
 
-#Input: CSV path, cases and history -> Writes new cases into history
-def add_to_history(path, cases, history):
-    with open(path, "a", newline='') as f:
+#Input: CSV path and history -> Writes new cases into history
+def add_to_history(path, history):
+    with open(path, "w", newline='') as f:
         writer = csv.writer(f)
-        for case in cases:
-            if case not in history:
-                writer.writerow(case)
+        for case in history:
+            writer.writerow(case)
 
 #Input: History path -> Writes sorted history to path with cases older than two weeks removed
-def clean_history(path, timezone):
-    sortedHistory = []
-    with open(path, "r", newline='') as infile:
-        reader = csv.reader(infile)
-        two_weeks = (datetime.datetime.now(tz=timezone) - datetime.timedelta(days=14))
-
-        sortedHistory = sorted(reader, key=lambda case:case[2], reverse=True)
-        for case in sortedHistory[:]:
-            date = timezone.localize(datetime.datetime.strptime(case[2], "%Y-%m-%d"))
-            if date < two_weeks:
-                sortedHistory.remove(case)
-    
-    with open(path, "w", newline='') as outfile:
-        writer = csv.writer(outfile)
-        writer.writerows(sortedHistory)
+def clean_history(history, new_cases, timezone):
+    combined = history + new_cases
+    sortedHistory = sorted(combined, key=lambda case:case[2], reverse=True)
+    two_weeks = (datetime.datetime.now(tz=timezone) - datetime.timedelta(days=14))
+    for case in sortedHistory[:]:
+        date = timezone.localize(datetime.datetime.strptime(case[2], "%Y-%m-%d"))
+        if date < two_weeks:
+            sortedHistory.remove(case)
+    return sortedHistory
 
 #Input: Array with searched cases and history -> Returns a dict of new cases and # of new cases
 def find_new_cases(cases, history):
@@ -237,17 +230,14 @@ def read_history_s3(bucket, key):
     except Exception as e:
         raise SystemExit(e)    
 
-def write_history_s3(bucket, key, cases, history):
+def write_history_s3(bucket, key, history):
     s3 = boto3.client('s3')
-    output = []
-    for case in cases:
-        if case not in history:
-            output.append(case)
-    # Combine with existing history
-    all_cases = history + output
-    # Write back to S3
-    csv_content = "\n".join([",".join(row) for row in all_cases])
-    s3.put_object(Bucket=bucket, Key=key, Body=csv_content.encode('utf-8'))
+    try:
+        # Write back to S3
+        csv_content = "\n".join([",".join(row) for row in history])
+        s3.put_object(Bucket=bucket, Key=key, Body=csv_content.encode('utf-8'))
+    except Exception as e:
+        raise SystemExit(e)
 
 #AWS Lambda handler
 def lambda_handler(event, context):
@@ -286,9 +276,8 @@ def lambda_handler(event, context):
     send_email(email, config['script_email'], config['email_pswd'])
 
     #Write any new cases into the history file and clean file
-    #clean_history(history_path)
-    write_history_s3(bucket, key, cases, history)
-    #TODO -> Lambda clean history
+    history = clean_history(history, cases, config['court_tz'])
+    write_history_s3(bucket, key, history)
     
     #Invalidate the authentication token
     logout(token, config['auth_url'])
@@ -319,8 +308,8 @@ def main():
     send_email(email, config['script_email'], config['email_pswd'])
 
     #Write any new cases into the history file and clean file
-    add_to_history(history_path, cases, history)
-    clean_history(history_path, config['court_tz'])
+    history = clean_history(history, cases, config['court_tz'])
+    add_to_history(history_path, history)
 
     #Invalidate the authentication token
     logout(token, config['auth_url'])
