@@ -1,5 +1,5 @@
 import boto3
-import requests, datetime, csv, smtplib, sys, re, os, configparser, pytz
+import requests, datetime, csv, smtplib, sys, re, os, configparser, pytz, io
 from email.message import EmailMessage
 
 #Input: Command line args -> 0 for Daily, 1 for Weekly
@@ -233,8 +233,12 @@ def read_history_s3(bucket, key):
 def write_history_s3(bucket, key, history):
     s3 = boto3.client('s3')
     try:
-        # Write back to S3
-        csv_content = "\n".join([",".join(row) for row in history])
+        # Use csv.writer to handle quoting
+        output = io.StringIO()
+        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+        for row in history:
+            writer.writerow(row)
+        csv_content = output.getvalue()
         s3.put_object(Bucket=bucket, Key=key, Body=csv_content.encode('utf-8'))
     except Exception as e:
         raise SystemExit(e)
@@ -256,7 +260,6 @@ def lambda_handler(event, context):
         'pclpswd': os.environ['pclpswd'],
     }
     bucket = os.environ['history_bucket']
-    key = os.environ['history_key']
 
     #Get authentication token from PACER
     token = authenticate(config['pclusr'], config['pclpswd'], config['auth_url'])
@@ -266,7 +269,7 @@ def lambda_handler(event, context):
     cases, cost = search(fromDate, toDate, token, config['pclapiurl'], config['court_id'])
 
     #Read history file into array for use
-    history = read_history_s3(bucket, key)
+    history = read_history_s3(bucket, "history.csv")
 
     #Find new cases by comparing current search and history
     new_cases, total = find_new_cases(cases, history)
@@ -277,7 +280,7 @@ def lambda_handler(event, context):
 
     #Write any new cases into the history file and clean file
     history = clean_history(history, cases, config['court_tz'])
-    write_history_s3(bucket, key, history)
+    write_history_s3(bucket, "history.csv", history)
     
     #Invalidate the authentication token
     logout(token, config['auth_url'])
