@@ -9,7 +9,7 @@ A Python based tool that uses [PACER Case Locator API](https://pacer.uscourts.go
 - Gmail account with [App Passwords Enabled](https://support.google.com/mail/answer/185833?hl=en)
 - (Optional) AWS account with permissions to create Lambda, S3, and EventBridge resources 
 ## Setup (Local)
-1. Clone the repo: `git clone https://github.com/mhayes2772/PACER-Updates.git
+1. Clone the repo: `git clone https://github.com/mhayes2772/PACER-Updates.git`
 2. Rename `config_template.ini` to `config.ini`
 3. Add necessary info to `config.ini`
 	- `script_email`: gmail address
@@ -29,7 +29,7 @@ A Python based tool that uses [PACER Case Locator API](https://pacer.uscourts.go
 4. Run the script: `py pacer.py daily` or `py pacer.py weekly`
 	- Daily will search for new cases in the current and last business day
 	- Weekly will search for cases in the last 5 business
-5. Use OS scheduler application such as Windows Task Scheduler or LaunchControl to run the script at a set time each day/week/etc.
+5. Use an OS-based scheduler application such as Windows Task Scheduler or LaunchControl to run the script at a set time each day, week, etc.
 ## Setup (AWS Lambda)
 1. Create an S3 Bucket to hold `history.csv`
 2. Create an IAM Role for your pacer function
