@@ -1,6 +1,6 @@
 # PACER Updates Tool
 
-A Python based tool that uses [PACER Case Locator API](https://pacer.uscourts.gov/help/pacer/pacer-case-locator-pcl-api-user-guide) to automatically search for new federal cases in a specificized district and email interested parties. Designed to save time and effort for reporters, researchers and legal professionals. Can either be run locally or in AWS Lambda.
+A Python based tool that uses [PACER Case Locator API](https://pacer.uscourts.gov/help/pacer/pacer-case-locator-pcl-api-user-guide) to automatically search for new federal cases in a specified district and email interested parties. Designed to save time and effort for reporters, researchers and legal professionals. Can either be run locally or in AWS Lambda.
 ## Example
 ![image](example_email.png)
 ## Requirements
